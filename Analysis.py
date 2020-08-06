@@ -90,5 +90,24 @@ def get_difference(matrix_baseline, matrix_projection,threshold=75):
     
     return [loss,gain,const,never]
 
+def flag_significant_pairs(matrix_baseline, matrix_projection,threshold=75):
+    #output [matrix_significant]
+    #This function flags species pairs lost, gained, and remained with a 1,2, and 3, respectively
+    #It uses the LLR scores between species in a baseline and a projection,
+    #and a threshold to decide what values are significant.
+    #Significant LLR values need to be positive. The threshold is given as a percentile.
+    #If the threshold is a missing value, then significant LLR values are all those that are positive
+    
+
+    vec = matrix_baseline[matrix_baseline > 0]
+
+    Y = np.percentile(vec, threshold)
+
+    gained_pairs = np.where((matrix_baseline <= Y) & (matrix_projection > Y),1,0)
+    
+    return gained_pairs
+
+    
+
 
 
