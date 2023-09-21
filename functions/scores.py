@@ -12,9 +12,11 @@ import pyreadr
 import logging
 
 
-def calculate_scores(list_files: list[int], file_names: list[str], list_of_values: list[int], clusters: np.ndarray, model_names: list[str], 
-                    algo_names: list[str]=['GAM','GLM','RF','ANN'], output_dir: str="/home/ursho/PhD/Projects/Communitiy_cooccurrence_Fabio/All_models/" ) -> None:
+def calculate_scores(list_files: list[int], file_names: list[str], list_of_values: list[int], 
+                    clusters: np.ndarray, model_names: list[str], configurations: Configuration_parameters) -> None:
     
+    algo_names = configurations.algorithm_names
+    output_dir = configurations.directory_output
     #first step is to find the indeces of the files needed as depicted in list_of_values
     x1,x2,x3 = list_of_values
 
@@ -39,16 +41,13 @@ def calculate_scores(list_files: list[int], file_names: list[str], list_of_value
     name_file = f'{model_names[x2-1]}_{algo_names[x3-1]}_p{str(x1)}.csv'
     logging.info(name_file)
 
-    current_algorithm = algo_names[x3-1]
-
     homogenized_baseline, homogenized_future, homogenized_clusters = homogenize_data(phyto_baseline, zoo_baseline, phyto_future, zoo_future, clusters=clusters )
     
-    threshold = np.arange(25,41,1)
-    threshold_RF = np.arange(10,26,1)
+    start_threshold = configurations.threshold_start[x3-1]
+    end_threshold = configurations.threshold_end[x3-1]
+    threshold_algo = np.arange(start_threshold, end_threshold, 1)
 
-    for thr, thr_RF in tqdm(zip(threshold, threshold_RF), desc='Getting scores for different threshholds'):
-
-        thr = thr_RF if current_algorithm == 'RF' else thr
+    for thr in tqdm(threshold_algo), desc='Getting scores for different threshholds'):
 
         presence_baseline, presence_future = get_presence_absence(homogenized_baseline, homogenized_future, thr)
 

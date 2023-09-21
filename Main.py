@@ -89,8 +89,7 @@ def main():
     
     for my_list in range(len(list_of_values)):
         
-        p = multiprocessing.Process(target=functions.calculate_scores, 
-            args=(list_files,file_names,list_of_values[my_list],clusters,all_models, my_config.algorithm_names, my_config.directory_output))
+        p = multiprocessing.Process(target=functions.calculate_scores, args=(list_files,file_names,list_of_values[my_list],clusters,all_models, my_config))
 
         jobs.append(p)
         p.start()
@@ -125,7 +124,7 @@ def main():
     
     models = np.unique(models).tolist()   
     
-    my_list = functions.find_baseline(file_names,models=models,algo_names=algo_names,params=params,clusters=clusters)   
+    my_list = functions.find_baseline(file_names,models=models,algo_names=algo_names,params=params,clusters=clusters, configurations=my_config)   
     
     my_list = my_list[my_list[:,1] == 1,:]
     

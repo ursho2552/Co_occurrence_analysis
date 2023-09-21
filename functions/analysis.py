@@ -5,13 +5,11 @@ Created on Mon Apr 27 16:10:29 2020
 
 @author: ursho
 """
-import csv
 import numpy as np
-import glob
-import re
 
 
-def find_baseline(file_names: list[str], models: list[str], algorithm_names: list[str], parameters: list[str], clusters: np.ndarray=None) -> np.ndarray:
+def find_baseline(file_names: list[str], models: list[str], algorithm_names: list[str], 
+                    parameters: list[str], clusters: np.ndarray=None, configurations: Configuration_parameters) -> np.ndarray:
     '''
     This function finds the baseline for each future projection based on the threshold, model, algorithm, and parameterset used.
     It also considers different clusters if they are provided
@@ -22,16 +20,18 @@ def find_baseline(file_names: list[str], models: list[str], algorithm_names: lis
 
     list_files = np.zeros((len(file_names),3))
     list_files[:,0] = np.arange(len(file_names))
-    thresholds = np.arange(25,41,1)
-    thresholds_RF = np.arange(10,26,1)
+    
+    for model in models:
 
-    for threshold, threshold_RF in zip(thresholds, thresholds_RF):
-        for model in models:
-            for algorithm in algorithm_names:
+        for idx, algorithm in enumerate(algorithm_names):
+
+            start_threshold = configurations.threshold_start[idx]
+            end_threshold = configurations.threshold_end[idx]
+            threshold_algo = np.arange(start_threshold, end_threshold, 1)
+
+            for threshold in threshold_algo:
+
                 for parameter in parameters:
-                    
-                    if algorithm == 'RF':
-                        threshold = threshold_RF
                     
                     future_name_suffix = f'Threshold_{str(threshold)}_Scores_future_{model}_{algorithm}_{parameter}.csv'
                     baseline_name_suffix = f'Threshold_{str(threshold)}_Scores_baseline_{model}_{algorithm}_{parameter}.csv'
