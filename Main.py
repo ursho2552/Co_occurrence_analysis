@@ -6,19 +6,29 @@ Created on Thu May  7 10:05:36 2020
 @author: Urs Hofmann Elizondo
 Main file for the analysis of species co-occurrences
 """
-from Scores import Calculate_Scores
-from Analysis import find_baseline, get_difference
+
 import numpy as np
+
+import functions
+import logging
 import glob
 import re
 import multiprocessing
+import csv
 
-if __name__ in "__main__":
+from tqdm import tqdm
+
+def main():
+
+    configuration_file = '/Users/urshofmannelizondo/Documents/PhD/Co-occurrence_analysis/Co_occurrence_analysis/parameters.yaml'
+
+    my_config = functions.read_config_file(configuration_file)
+
     #Define the directory with the model output
     #The files are RData files
-    directory = '/net/kryo/work/fabioben/OVERSEE/data/tables_composition_ensemble_rcp85/Individual_projections/'
+    directory = my_config.directory_R_data
     #get all data files with the annual compositon
-    file_names = glob.glob(directory+"table_ann_compo_*.Rdata")
+    file_names = glob.glob(directory + my_config.R_data_file_root)
     
     #create an array with the same size as number of files, and 6 columns
     #The six columns will help identify the files according to the species (phyto/zoo),
@@ -27,57 +37,33 @@ if __name__ in "__main__":
     list_files[:,0] = np.arange(len(file_names))
     
     models = []
-    for i in range(len(file_names)):
+    for i, file in enumerate(file_names):
     #populate matrix with values
-        s = file_names[i]
         
-        if 'phyto' in file_names[i]:
+        if my_config.first_group in file:
             list_files[i,1] = 1
    
-        if 'baseline' in file_names[i]:
+        if my_config.reference_time_name in file:
             list_files[i,2] = 1
-    
-        if 'GAM' in file_names[i]:
-            list_files[i,3] = 1
-            if list_files[i,2] == 0:
-                pattern = "2000_(.*)_GAM_p"
-                substring = re.search(pattern, s)
-                models.append(substring.group(1))
-                
-        elif 'GLM' in file_names[i]:
-            list_files[i,3] = 2
-            if list_files[i,2] == 0:
-                pattern = "2000_(.*)_GLM_p"
-                substring = re.search(pattern, s)
-                models.append(substring.group(1))
-                
-        elif 'RF' in file_names[i]:
-            list_files[i,3] = 3
-            if list_files[i,2] == 0:
-                pattern = "2000_(.*)_RF_p"
-                substring = re.search(pattern, s)
-                models.append(substring.group(1))
-                
-        elif 'ANN' in file_names[i]:
-            list_files[i,3] = 4
-            if list_files[i,2] == 0:
-                pattern = "2000_(.*)_ANN_p"
-                substring = re.search(pattern, s)
-                models.append(substring.group(1))
+
+        for idx_algorithm, algorithm in enumerate(my_config.algorithm_names):
             
-        if 'p1' in file_names[i]:
-            list_files[i,5] = 1
-        elif 'p2' in file_names[i]:
-            list_files[i,5] = 2
-        elif 'p3' in file_names[i]:
-            list_files[i,5] = 3
-        elif 'p4' in file_names[i]:
-            list_files[i,5] = 4
-            
+            if algorithm in file:
+                list_files[i,3] = idx_algorithm + 1
+                if list_files[i,2] == 0:
+                    pattern = '2000_(.*)_' + algorithm + '_p'
+                    substring = re.search(pattern, file)
+                    models.append(substring.group(1))
+        
+        for idx_params, parameter in enumerate(my_config.parameter_names):
+                     
+            if parameter in file:
+                list_files[i,5] = idx_params + 1
+
     all_models = np.unique(models)
-    for i in range(len(file_names)):
-        for j in range(len(all_models)):
-            if all_models[j] in file_names[i]:
+    for i, file in enumerate(file_names):
+        for j, model in enumerate(all_models):
+            if model in file:
                 list_files[i,4] = j+1
                  
     
@@ -93,18 +79,19 @@ if __name__ in "__main__":
             for k in range(1,max(np.unique(list_files[:,-3])).astype(int)+1):
                 list_of_values.append([i,j,k])
                 
-
-
     #read in the clusters
-    clusters =  np.genfromtxt('/home/ursho/PhD/Projects/Communitiy_cooccurrence_Fabio/All_models/Table_clusters.csv', delimiter=',')
-    
+    clusters = None
+    if my_config.directory_clusters is not None:
+        clusters =  np.genfromtxt(my_config.directory_clusters, delimiter=',')
+
     #do the calculations in parallel
-    #We performed the analysis in chunks of ten on different machines
     jobs = []
     
     for my_list in range(len(list_of_values)):
         
-        p = multiprocessing.Process(target=Calculate_Scores, args=(list_files,file_names,list_of_values[my_list],clusters,all_models))
+        p = multiprocessing.Process(target=functions.calculate_scores, 
+            args=(list_files,file_names,list_of_values[my_list],clusters,all_models, my_config.algorithm_names, my_config.directory_output))
+
         jobs.append(p)
         p.start()
     
@@ -117,81 +104,78 @@ if __name__ in "__main__":
 #==============================================================================
             
     #Define directory where data was stored above
-    #Choose one either gloabl or cluster:
-#    directory = '/home/ursho/PhD/Projects/Communitiy_cooccurrence_Fabio/All_models/Global/'
-    directory = '/home/ursho/PhD/Projects/Communitiy_cooccurrence_Fabio/All_models/Clusters/'
+    directory = my_config.directory_analysis
     
     #Choose the appropriate file names with Cluster or global
-#    file_names = glob.glob(directory+"Threshold*")
-    file_names = glob.glob(directory+"Cluster*")
+    if clusters is not None:
+        file_names = glob.glob(directory+"Cluster*")
+    else:
+        file_names = glob.glob(directory+"Threshold*")
     
+    algo_names = my_config.algorithm_names
+    params = my_config.parameter_names
+
     models = []
-    algo_names = ['GAM','GLM','RF','ANN']
-    params = ['p1','p2','p3','p4']
-    for i in range(len(file_names)):
+    for file in file_names:
     #populate matrix with values
-        s = file_names[i]
         pattern = "baseline_(.*)_ANN_p"
-        substring = re.search(pattern, s)
+        substring = re.search(pattern, file)
         if substring is not None:
             models.append(substring.group(1))
     
-    models = np.unique(models)   
+    models = np.unique(models).tolist()   
     
-#    clusters = None
-    clusters = np.arange(1,7)
-    my_list = find_baseline(file_names,models=models,algo_names=algo_names,params=params,clusters=clusters)   
+    my_list = functions.find_baseline(file_names,models=models,algo_names=algo_names,params=params,clusters=clusters)   
     
     my_list = my_list[my_list[:,1] == 1,:]
     
     all_results = np.empty((3*len(my_list),8),dtype=float)
     all_results_text = []
-    c = 0;
-    for i in range(len(my_list)):
+    c = 0
+    for i in tqdm(my_list, desc='Calculating statistics'):
+
         base_file = file_names[int(my_list[i,2])]
         future_file = file_names[int(my_list[i,0])]
         
-        s = base_file
         pattern = "Threshold_(.*)_Scores_baseline"
-        thr = re.search(pattern, s).group(1)
+        thr = re.search(pattern, base_file).group(1)
         
         if clusters is not None:
             pattern = "Cluster_(.*)_Threshold"
-            clust = re.search(pattern,s).group(1)
-            print(clust)
+            clust = re.search(pattern, base_file).group(1)
+            logging.info(clust)
         
-        algo = s[-10:-7]
+        algo = base_file[-10:-7]
         algo = re.sub('[!@#$_]', '', algo)
                         
         pattern = "baseline_(.*)_"+algo
-        mod = re.search(pattern, s).group(1)
-        p_val = s[-5]
+        mod = re.search(pattern, base_file).group(1)
+        p_val = base_file[-5]
          
         matrix_baseline = np.genfromtxt(base_file, delimiter=',')
         matrix_projection = np.genfromtxt(future_file, delimiter=',')
     
-        #all
-        print('All')
-        loss_a,gain_a,const_a,never = get_difference(matrix_baseline, matrix_projection)
-        tot_a = loss_a+gain_a+const_a    
-        print(np.array([loss_a,gain_a,const_a])/tot_a)
         
-        print('phyto:')
-        loss_p,gain_p,const_p,never = get_difference(matrix_baseline[:338,:338], matrix_projection[:338,:338])
-        tot_p = loss_p+gain_p+const_p
-        print(np.array([loss_p,gain_p,const_p])/tot_p)
+        logging.warning('All')
+        loss_a,gain_a,const_a,never = functions.get_difference(matrix_baseline, matrix_projection)
+        tot_a = loss_a + gain_a + const_a    
+        logging.warning(np.array([loss_a,gain_a,const_a])/tot_a)
+        
+        logging.warning('phyto:')
+        loss_p,gain_p,const_p,never = functions.get_difference(matrix_baseline[:338,:338], matrix_projection[:338,:338])
+        tot_p = loss_p + gain_p + const_p
+        logging.warning(np.array([loss_p,gain_p,const_p])/tot_p)
     
-        print('zoo:')
-        loss_z,gain_z,const_z,never = get_difference(matrix_baseline[338:,338:], matrix_projection[338:,338:])
-        tot_z = loss_z+gain_z+const_z
-        print(np.array([loss_z,gain_z,const_z])/tot_z)
+        logging.warning('zoo:')
+        loss_z,gain_z,const_z,never = functions.get_difference(matrix_baseline[338:,338:], matrix_projection[338:,338:])
+        tot_z = loss_z + gain_z + const_z
+        logging.warning(np.array([loss_z,gain_z,const_z])/tot_z)
         
-        print('phyto-zoo:')
-        loss_pz,gain_pz,const_pz,never = get_difference(matrix_baseline[:338,338:], matrix_projection[:338,338:])
-        tot_pz = loss_pz+gain_pz+const_pz
-        print(np.array([loss_pz,gain_pz,const_pz])/tot_pz)
+        logging.warning('phyto-zoo:')
+        loss_pz,gain_pz,const_pz,never = functions.get_difference(matrix_baseline[:338,338:], matrix_projection[:338,338:])
+        tot_pz = loss_pz + gain_pz + const_pz
+        logging.warning(np.array([loss_pz,gain_pz,const_pz])/tot_pz)
         
-    
         all_results[c,:] = [loss_a/tot_a,loss_p/tot_p,loss_z/tot_z,loss_pz/tot_pz,tot_a,tot_p,tot_z,tot_pz]
         if clusters is not None:
             all_results_text.append([str(clust),'Loss',str(thr),mod,algo,str(p_val)])
@@ -212,18 +196,27 @@ if __name__ in "__main__":
         else:
             all_results_text.append(['Const',str(thr),mod,algo,str(p_val)])
         c = c + 1
-        
-        print(i,len(my_list))
     
-        
-        
-    filename_results = '/home/ursho/PhD/Projects/Communitiy_cooccurrence_Fabio/All_models/Cluster_All_results.csv'
+    if clusters is not None:
+        filename_results = my_config.directory_output + 'Cluster_All_results.csv'
+        filename_results_description = my_config.directory_output + 'Cluster_All_results_description.csv'
+    else:
+        filename_results = my_config.directory_output + 'All_results.csv'
+        filename_results_description = my_config.directory_output + 'All_results_description.csv'
+
     np.savetxt(filename_results, all_results, delimiter=',')  
-    
-    filename_results = '/home/ursho/PhD/Projects/Communitiy_cooccurrence_Fabio/All_models/Cluster_All_results_description.csv'
-    with open(filename_results,"w+") as my_csv:
+
+    with open(filename_results_description,"w+") as my_csv:
         csvWriter = csv.writer(my_csv,delimiter=',')
         csvWriter.writerows(all_results_text)
     
     
 
+'''
+Main Function
+'''
+if __name__ in "__main__":
+    logging.basicConfig(level=logging.WARNING)
+
+    main()
+    

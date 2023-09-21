@@ -1,0 +1,20 @@
+# Configuration yaml file for analysis parameters for
+
+directory_R_data: '/net/kryo/work/fabioben/OVERSEE/data/tables_composition_ensemble_rcp85/Individual_projections/'
+R_data_file_root: 'table_ann_compo_*.Rdata'
+directory_clusters: '/home/ursho/PhD/Projects/Communitiy_cooccurrence_Fabio/All_models/Table_clusters.csv'
+
+directory_analysis: '/home/ursho/PhD/Projects/Communitiy_cooccurrence_Fabio/All_models/Clusters/' #'/home/ursho/PhD/Projects/Communitiy_cooccurrence_Fabio/All_models/Global/'
+directory_output: '/home/ursho/PhD/Projects/Communitiy_cooccurrence_Fabio/All_models/'
+
+first_group: 'phyto'
+second_group: 'zoo'
+
+reference_time_name: 'baseline'
+projection_time_name: 'future'
+
+algorithm_names: ['GAM', 'GLM', 'RF', 'ANN']
+parameter_names: ['p1', 'p2', 'p3', 'p4']
+
+threshold_start: [25, 25, 10, 25]
+threshold_end: [41, 41, 26, 41]
