@@ -1,4 +1,4 @@
-## Co-occurrence analysis for
+## Co-occurrence analysis
 
 This repository is a set of functions used to derive significant species pairs or potential co-occurrences from presence/absence data.
 To this end, we use a text analysis algorithm ([Dunning et al., 1993](https://dl.acm.org/doi/10.5555/972450.972454); [Wahl and Gries, 2018](https://link.springer.com/chapter/10.1007/978-3-319-92582-0_5)) that identifies pairs of species which co-occur more frequently than expected by their individual presence patterns.
