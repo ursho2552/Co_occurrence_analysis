@@ -55,7 +55,7 @@ def main():
                     substring = re.search(pattern, file)
                     models.append(substring.group(1))
         
-        for idx_params, parameter in enumerate(my_config.parameter_names):
+        for idx_params, parameter in enumerate(my_config.predictor_set):
                      
             if parameter in file:
                 list_files[i,5] = idx_params + 1
@@ -112,7 +112,7 @@ def main():
         file_names = glob.glob(directory+"Threshold*")
     
     algo_names = my_config.algorithm_names
-    params = my_config.parameter_names
+    params = my_config.predictor_set
 
     models = []
     for file in file_names:

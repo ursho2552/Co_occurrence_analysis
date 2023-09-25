@@ -10,6 +10,7 @@ from tqdm import tqdm
 import numpy as np
 import pyreadr
 import logging
+from functions.initialize import Configuration_parameters
 
 
 def calculate_scores(list_files: list[int], file_names: list[str], list_of_values: list[int], 
@@ -47,7 +48,7 @@ def calculate_scores(list_files: list[int], file_names: list[str], list_of_value
     end_threshold = configurations.threshold_end[x3-1]
     threshold_algo = np.arange(start_threshold, end_threshold, 1)
 
-    for thr in tqdm(threshold_algo), desc='Getting scores for different threshholds'):
+    for thr in tqdm(threshold_algo, desc='Getting scores for different threshholds'):
 
         presence_baseline, presence_future = get_presence_absence(homogenized_baseline, homogenized_future, thr)
 
@@ -97,16 +98,16 @@ def read_in_data(data: str) -> np.ndarray:
 
 
 def homogenize_data(phytoplankton_baseline: np.ndarray, zooplankton_baseline: np.ndarray, phytoplankton_projection: np.ndarray,
-                    zooplankton_projection: np.ndarray, clusters: np.ndarray=None) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+                    zooplankton_projection: np.ndarray, clusters: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     '''
     This function homogenizes the given data
     '''
 
     #Check that data has the right format (minimal check)
-    assert phytoplankton_baseline.shape[1] >= 5, 'Not enough entries in the phytoplankton baseline'
-    assert zooplankton_baseline.shape[1] >= 5, 'Not enough entries in the zooplankton baseline'
-    assert phytoplankton_projection.shape[1] >= 5, 'Not enough entries in the phytoplankton projection'
-    assert zooplankton_projection.shape[1] >= 5, 'Not enough entries in the zooplankton projection'
+    assert phytoplankton_baseline.shape[1] > 5, 'Not enough entries in the phytoplankton baseline'
+    assert zooplankton_baseline.shape[1] > 5, 'Not enough entries in the zooplankton baseline'
+    assert phytoplankton_projection.shape[1] > 5, 'Not enough entries in the phytoplankton projection'
+    assert zooplankton_projection.shape[1] > 5, 'Not enough entries in the zooplankton projection'
 
     #select matrix with highest number of cells (might not be the best way to do this)
     if phytoplankton_projection.shape[0] > zooplankton_projection.shape[0]:
@@ -170,7 +171,10 @@ def get_presence_absence(homogenized_baseline: np.ndarray, homogenized_future: n
     '''
     This function converts a habitat suitability matrix into a presence/absence matrix based on a given threshold
     '''
-        
+    
+    assert threshold > 0, 'Threshold has to be non-negative.'
+    assert threshold <= 100, 'Threshold has to be between 1 and 100.'
+
     presence_baseline = (homogenized_baseline > threshold/100).astype(float)
     presence_baseline[np.isnan(homogenized_baseline)] = np.nan
     
@@ -186,7 +190,10 @@ def confusion_matrix(data: np.ndarray) -> np.ndarray:
     The rows are the pixels available, and the columns are the different species
     '''
 
-    _, cols = data.shape
+    rows, cols = data.shape
+
+    assert cols >= 6, 'Incorrect data format. The first columns should be ID|Latitude|Longitude|Month, and should contain at least two species'
+    assert rows > 1, 'Not enough observations in the dataset'
     
     score = np.zeros((cols-4,cols-4))
     
@@ -198,7 +205,7 @@ def confusion_matrix(data: np.ndarray) -> np.ndarray:
 
     return score
 
-def save_scores(scores_baseline: np.ndarray, scores_future: np.ndarray, threshold: int, output_dir: str, name_file: str, cluster: np.ndarray=None) -> None:
+def save_scores(scores_baseline: np.ndarray, scores_future: np.ndarray, threshold: int, output_dir: str, name_file: str, cluster: int=None) -> None:
     '''
     This function saves the scores given the threshold used to calculate the scores, and the clusters
     '''
@@ -251,9 +258,13 @@ def calculate_shannon(vec: np.ndarray) -> float:
     This function calculates the shannon entropy from a vector.
     It is a measure for the uncertainty in the observed probability ditribution.
     '''
-         
-    n = np.sum(vec)
-    shannon_entropy = np.sum(vec/n * np.log(vec/n + (vec == 0)))
+    
+    
+    total = np.sum(vec)
+    if total > 0:
+        shannon_entropy = np.sum(vec/total * np.log(vec/total + (vec == 0)))
+    else:
+        shannon_entropy = np.nan
               
     return shannon_entropy
 

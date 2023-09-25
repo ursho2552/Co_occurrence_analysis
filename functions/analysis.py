@@ -6,10 +6,11 @@ Created on Mon Apr 27 16:10:29 2020
 @author: ursho
 """
 import numpy as np
+from functions.initialize import Configuration_parameters
 
 
 def find_baseline(file_names: list[str], models: list[str], algorithm_names: list[str], 
-                    parameters: list[str], clusters: np.ndarray=None, configurations: Configuration_parameters) -> np.ndarray:
+                    parameters: list[str], clusters: np.ndarray, configurations: Configuration_parameters) -> np.ndarray:
     '''
     This function finds the baseline for each future projection based on the threshold, model, algorithm, and parameterset used.
     It also considers different clusters if they are provided

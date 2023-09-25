@@ -26,7 +26,7 @@ class Configuration_parameters():
     projection_time_name: str
 
     algorithm_names: list[str]
-    parameter_names: list[str]
+    predictor_set: list[str]
 
     threshold_start: list[int]
     threshold_end: list[int]
@@ -42,6 +42,9 @@ def read_config_file(configuration_file, configuration_class=Configuration_param
         config_list = yaml.load(file, Loader=yaml.FullLoader)
 
     configuration = configuration_class(**config_list)
+
+    # check that the entries match
+    assert len(configuration.threshold_start) == len(configuration.threshold_end), 'The number of starting points and end points does not match.'
 
     return configuration
 
