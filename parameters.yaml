@@ -1,7 +1,7 @@
 # Configuration yaml file for analysis parameters for
 
-directory_R_data: '/net/kryo/work/fabioben/OVERSEE/data/tables_composition_ensemble_rcp85/Individual_projections/'
-R_data_file_root: 'table_ann_compo_*.Rdata'
+directory_r_data: '/net/kryo/work/fabioben/OVERSEE/data/tables_composition_ensemble_rcp85/Individual_projections/'
+r_data_file_root: 'table_ann_compo_*.Rdata'
 directory_clusters: '/home/ursho/PhD/Projects/Communitiy_cooccurrence_Fabio/All_models/Table_clusters.csv'
 
 directory_analysis: '/home/ursho/PhD/Projects/Communitiy_cooccurrence_Fabio/All_models/Clusters/' #'/home/ursho/PhD/Projects/Communitiy_cooccurrence_Fabio/All_models/Global/'

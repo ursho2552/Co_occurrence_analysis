@@ -6,46 +6,51 @@ Created on Fri Apr 24 11:57:48 2020
 @author: ursho
 """
 from typing import Tuple
+import logging
+import pyreadr
+
 from tqdm import tqdm
 import numpy as np
-import pyreadr
-import logging
-from functions.initialize import Configuration_parameters
+
+from functions.initialize import ConfigurationParameters
 
 
-def calculate_scores(list_files: list[int], file_names: list[str], list_of_values: list[int], 
-                    clusters: np.ndarray, model_names: list[str], configurations: Configuration_parameters) -> None:
-    
+def calculate_scores(list_files: list[int], file_names: list[str], list_of_values: list[int],
+                    clusters: np.ndarray, model_names: list[str], configurations: ConfigurationParameters) -> None:
+    '''
+    This function is used to call all scores functions and calculate the scores.
+    '''
+
     algo_names = configurations.algorithm_names
     output_dir = configurations.directory_output
     #first step is to find the indeces of the files needed as depicted in list_of_values
-    x1,x2,x3 = list_of_values
+    predictor_value, model_value, algorithm_value = list_of_values
 
     # 1: zoo or phyto | 2: future or baseline | 3: Algorithm | 4: Models used | 5: parameters (1--4)
-    f_phyto_base = np.where((list_files[:,1] == 1) & (list_files[:,2] == 1) & (list_files[:,3] == x3) &
-                               (list_files[:,4] == 0) & (list_files[:,5] == x1))[0][0]
-    
-    f_phyto_future = np.where((list_files[:,1] == 1) & (list_files[:,2] == 0) & (list_files[:,3] == x3) &
-                               (list_files[:,4] == x2) & (list_files[:,5] == x1))[0][0]
-    
-    f_zoo_base = np.where((list_files[:,1] == 0) & (list_files[:,2] == 1) & (list_files[:,3] == x3) &
-                               (list_files[:,4] == 0) & (list_files[:,5] == x1))[0][0]  
-    
-    f_zoo_future = np.where((list_files[:,1] == 0) & (list_files[:,2] == 0) & (list_files[:,3] == x3) &
-                               (list_files[:,4] == x2) & (list_files[:,5] == x1))[0][0]
+    f_phyto_base = np.where((list_files[:,1] == 1) & (list_files[:,2] == 1) & (list_files[:,3] == algorithm_value) &
+                               (list_files[:,4] == 0) & (list_files[:,5] == predictor_value))[0][0]
+
+    f_phyto_future = np.where((list_files[:,1] == 1) & (list_files[:,2] == 0) & (list_files[:,3] == algorithm_value) &
+                               (list_files[:,4] == model_value) & (list_files[:,5] == predictor_value))[0][0]
+
+    f_zoo_base = np.where((list_files[:,1] == 0) & (list_files[:,2] == 1) & (list_files[:,3] == algorithm_value) &
+                               (list_files[:,4] == 0) & (list_files[:,5] == predictor_value))[0][0]
+
+    f_zoo_future = np.where((list_files[:,1] == 0) & (list_files[:,2] == 0) & (list_files[:,3] == algorithm_value) &
+                               (list_files[:,4] == model_value) & (list_files[:,5] == predictor_value))[0][0]
 
     phyto_baseline = read_in_data(file_names[f_phyto_base])
     phyto_future = read_in_data(file_names[f_phyto_future])
     zoo_baseline = read_in_data(file_names[f_zoo_base])
     zoo_future = read_in_data(file_names[f_zoo_future])
-     
-    name_file = f'{model_names[x2-1]}_{algo_names[x3-1]}_p{str(x1)}.csv'
+
+    name_file = f'{model_names[model_value - 1]}_{algo_names[algorithm_value - 1]}_p{str(predictor_value)}.csv'
     logging.info(name_file)
 
     homogenized_baseline, homogenized_future, homogenized_clusters = homogenize_data(phyto_baseline, zoo_baseline, phyto_future, zoo_future, clusters=clusters )
-    
-    start_threshold = configurations.threshold_start[x3-1]
-    end_threshold = configurations.threshold_end[x3-1]
+
+    start_threshold = configurations.threshold_start[algorithm_value - 1]
+    end_threshold = configurations.threshold_end[algorithm_value - 1]
     threshold_algo = np.arange(start_threshold, end_threshold, 1)
 
     for thr in tqdm(threshold_algo, desc='Getting scores for different threshholds'):
@@ -68,17 +73,14 @@ def calculate_scores(list_files: list[int], file_names: list[str], list_of_value
                 scores_baseline = confusion_matrix(cluster_baseline)
                 scores_future = confusion_matrix(cluster_future)
 
-                save_scores(scores_baseline, scores_future, output_dir, name_file, cluster)
+                save_scores(scores_baseline, scores_future, thr, output_dir, name_file, cluster)
 
         else:
             #global view only
             scores_baseline = confusion_matrix(presence_baseline)
             scores_future = confusion_matrix(presence_future)
 
-            save_scores(scores_baseline, scores_future, output_dir, name_file)
-
-    return
-
+            save_scores(scores_baseline, scores_future, thr, output_dir, name_file)
 
 def read_in_data(data: str) -> np.ndarray:
     '''
@@ -87,18 +89,19 @@ def read_in_data(data: str) -> np.ndarray:
 
     result = pyreadr.read_r(data)
     items = list(result.items())
-    
+
     tmp = result[items[0][0]]
     tmp['cell_id'] = np.nan
     tmp.insert(0, 'index', tmp.index)
     res = tmp.to_numpy(dtype=float,copy=True)
-    
+
 
     return res
 
 
-def homogenize_data(phytoplankton_baseline: np.ndarray, zooplankton_baseline: np.ndarray, phytoplankton_projection: np.ndarray,
-                    zooplankton_projection: np.ndarray, clusters: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def homogenize_data(phytoplankton_baseline: np.ndarray, zooplankton_baseline: np.ndarray,
+                    phytoplankton_projection: np.ndarray, zooplankton_projection: np.ndarray,
+                    clusters: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     '''
     This function homogenizes the given data
     '''
@@ -111,7 +114,7 @@ def homogenize_data(phytoplankton_baseline: np.ndarray, zooplankton_baseline: np
 
     #select matrix with highest number of cells (might not be the best way to do this)
     if phytoplankton_projection.shape[0] > zooplankton_projection.shape[0]:
-        id_matrix = phytoplankton_projection[:,[0,2,3]]  
+        id_matrix = phytoplankton_projection[:,[0,2,3]]
     else:
         id_matrix = zooplankton_projection[:,[0,2,3]]
 
@@ -129,7 +132,7 @@ def homogenize_data(phytoplankton_baseline: np.ndarray, zooplankton_baseline: np
     zoo_baseline_extended = np.full((number_observations,number_zooplankton),np.nan)
     zoo_future_extended = np.full((number_observations,number_zooplankton),np.nan)
 
-    
+
     for i in tqdm(range(number_observations), desc='Copying data into homogenized array'):
 
         if i < phytoplankton_baseline.shape[0]:
@@ -153,31 +156,34 @@ def homogenize_data(phytoplankton_baseline: np.ndarray, zooplankton_baseline: np
                 ind = np.argwhere((id_matrix[:,1] == clusters[i,2]) & (id_matrix[:,2] == clusters[i,3]))
                 if ind.shape[0]>0:
                     clusters_extended[ind,:] = clusters[i,[0,2,3,4]]
-        
-            
+
+
     #Clean data and only use values found in both baseline and future
     phyto_future_extended[np.isnan(phyto_baseline_extended[:,4]),4:] = np.nan
     phyto_baseline_extended[np.isnan(phyto_future_extended[:,4]),4:] = np.nan
-    
+
     zoo_future_extended[np.isnan(zoo_baseline_extended[:,4]),4:]= np.nan
     zoo_baseline_extended[np.isnan(zoo_future_extended[:,4]),4:] = np.nan
-    
+
     homogenized_baseline = np.hstack((phyto_baseline_extended,zoo_baseline_extended[:,4:]))
     homogenized_future = np.hstack((phyto_future_extended,zoo_future_extended[:,4:]))
 
     return homogenized_baseline, homogenized_future, clusters_extended
 
-def get_presence_absence(homogenized_baseline: np.ndarray, homogenized_future: np.ndarray, threshold: int) -> Tuple[np.ndarray, np.ndarray]:
+def get_presence_absence(homogenized_baseline: np.ndarray,
+                        homogenized_future: np.ndarray,
+                        threshold: int) -> Tuple[np.ndarray, np.ndarray]:
     '''
-    This function converts a habitat suitability matrix into a presence/absence matrix based on a given threshold
+    This function converts a habitat suitability matrix into a
+    presence/absence matrix based on a given threshold
     '''
-    
+
     assert threshold > 0, 'Threshold has to be non-negative.'
     assert threshold <= 100, 'Threshold has to be between 1 and 100.'
 
     presence_baseline = (homogenized_baseline > threshold/100).astype(float)
     presence_baseline[np.isnan(homogenized_baseline)] = np.nan
-    
+
     presence_future = (homogenized_future > threshold/100).astype(float)
     presence_future[np.isnan(homogenized_future)] = np.nan
 
@@ -194,9 +200,9 @@ def confusion_matrix(data: np.ndarray) -> np.ndarray:
 
     assert cols >= 6, 'Incorrect data format. The first columns should be ID|Latitude|Longitude|Month, and should contain at least two species'
     assert rows > 1, 'Not enough observations in the dataset'
-    
+
     score = np.zeros((cols-4,cols-4))
-    
+
     for j in tqdm(range(4,cols-1), desc='Calculating scores for species pairs'):
 
         sum_presence = np.sum(data[:,j]>0)
@@ -205,9 +211,11 @@ def confusion_matrix(data: np.ndarray) -> np.ndarray:
 
     return score
 
-def save_scores(scores_baseline: np.ndarray, scores_future: np.ndarray, threshold: int, output_dir: str, name_file: str, cluster: int=None) -> None:
+def save_scores(scores_baseline: np.ndarray, scores_future: np.ndarray, threshold: int,
+                output_dir: str, name_file: str, cluster: int=None) -> None:
     '''
-    This function saves the scores given the threshold used to calculate the scores, and the clusters
+    This function saves the scores given the threshold used to calculate the scores,
+    and the clusters
     '''
 
     if cluster is not None:
@@ -224,26 +232,27 @@ def save_scores(scores_baseline: np.ndarray, scores_future: np.ndarray, threshol
 
         np.savetxt(filename_baseline, scores_baseline, delimiter=',')
         np.savetxt(filename_future, scores_future, delimiter=',')
-    
-    return
 
-def calculate_dunning(presence_addition: np.ndarray, presence_subtraction: np.ndarray, presence_sum: int) -> np.ndarray: 
+
+def calculate_dunning(presence_addition: np.ndarray, presence_subtraction: np.ndarray,
+                      presence_sum: int) -> np.ndarray:
     '''
     This function calculates the associations and uses the findings in Evert et al., 2008
-    to distinguish between positive and negative associations, and the absolute value expresses the significance
+    to distinguish between positive and negative associations, and the absolute value
+    expresses the significance
     '''
 
     co_occurrence = len(presence_addition[presence_addition == 2])
     absence_presence = len(presence_subtraction[presence_subtraction == -1])
     presence_absence = len(presence_subtraction[presence_subtraction == 1])
     co_absence = len(presence_addition[presence_addition == 0])
-    
+
 
     check = np.array([[co_occurrence, absence_presence],
                        [presence_absence,co_absence]])
 
     number_tokens = np.sum(presence_addition >= 0)
-    
+
     result = calculate_likelihood(check)
 
     expected = presence_sum*(co_occurrence + absence_presence)/number_tokens
@@ -251,21 +260,21 @@ def calculate_dunning(presence_addition: np.ndarray, presence_subtraction: np.nd
     if(check[0,0] < expected):
         return -result
     return result
-   
+
 
 def calculate_shannon(vec: np.ndarray) -> float:
     '''
     This function calculates the shannon entropy from a vector.
     It is a measure for the uncertainty in the observed probability ditribution.
     '''
-    
-    
+
+
     total = np.sum(vec)
     if total > 0:
         shannon_entropy = np.sum(vec/total * np.log(vec/total + (vec == 0)))
     else:
         shannon_entropy = np.nan
-              
+
     return shannon_entropy
 
 
@@ -276,14 +285,7 @@ def calculate_likelihood(contingency: np.ndarray) -> float:
     contingency_vectorized = np.reshape(contingency,(1, 4))
 
     likelihood = 2 * np.sum(contingency_vectorized) * (calculate_shannon(contingency_vectorized) -
-                       calculate_shannon(np.sum(contingency,1)) - calculate_shannon(np.sum(contingency,0)))
+                calculate_shannon(np.sum(contingency,1)) -
+                calculate_shannon(np.sum(contingency,0)))
 
     return  likelihood
-
-
-        
-
-
-
-
-    

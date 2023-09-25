@@ -11,9 +11,12 @@ from dataclasses import dataclass
 import yaml
 
 @dataclass
-class Configuration_parameters():
-    directory_R_data: str
-    R_data_file_root: str
+class ConfigurationParameters():
+    '''
+    Dataclass defining the parameters used in the analysis
+    '''
+    directory_r_data: str
+    r_data_file_root: str
     directory_clusters: str
 
     directory_analysis: str
@@ -31,14 +34,14 @@ class Configuration_parameters():
     threshold_start: list[int]
     threshold_end: list[int]
 
-def read_config_file(configuration_file, configuration_class=Configuration_parameters):
+def read_config_file(configuration_file, configuration_class=ConfigurationParameters):
     '''
     This function read the configuration file. It stores the values in configuration
     '''
 
     assert '.yaml' in configuration_file.lower(), "The configuration file should be a .yaml file"
 
-    with open(configuration_file, 'r') as file:
+    with open(configuration_file, 'r', encoding='utf-8') as file:
         config_list = yaml.load(file, Loader=yaml.FullLoader)
 
     configuration = configuration_class(**config_list)
@@ -47,6 +50,3 @@ def read_config_file(configuration_file, configuration_class=Configuration_param
     assert len(configuration.threshold_start) == len(configuration.threshold_end), 'The number of starting points and end points does not match.'
 
     return configuration
-
-
-
