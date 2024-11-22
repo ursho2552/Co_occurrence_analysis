@@ -32,7 +32,7 @@ def calculate_scores(list_files: List[int], file_names: List[str], list_of_value
     algo_names = configurations.algorithm_names
     output_dir = configurations.directory_output
     predictor_value, model_value, algorithm_value = list_of_values
-    print(algo_names)
+    
     # Locate indices of files
     file_indices = locate_file_indices(
         list_files, predictor_value, model_value, algorithm_value
