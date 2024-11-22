@@ -7,8 +7,11 @@ Created on Thr Sept 21 15:39:48 2023
 """
 
 from dataclasses import dataclass
-
+from typing import List, Type, TypeVar
 import yaml
+
+# Type variable for generality in the configuration class
+T = TypeVar('T', bound='ConfigurationParameters')
 
 @dataclass
 class ConfigurationParameters():
@@ -28,25 +31,42 @@ class ConfigurationParameters():
     reference_time_name: str
     projection_time_name: str
 
-    algorithm_names: list[str]
-    predictor_set: list[str]
+    algorithm_names: List[str]
+    predictor_set: List[str]
 
-    threshold_start: list[int]
-    threshold_end: list[int]
+    threshold_start: List[int]
+    threshold_end: List[int]
 
-def read_config_file(configuration_file, configuration_class=ConfigurationParameters):
-    '''
-    This function read the configuration file. It stores the values in configuration
-    '''
+def read_config_file(
+    configuration_file: str,
+    configuration_class: Type[T] = ConfigurationParameters
+) -> T:
+    """
+    Reads the configuration file and stores its values in the specified configuration class.
 
-    assert '.yaml' in configuration_file.lower(), "The configuration file should be a .yaml file"
+    Args:
+        configuration_file (str): Path to the configuration file (must be a .yaml file).
+        configuration_class (Type[T]): The class to store the configuration (default: ConfigurationParameters).
 
+    Returns:
+        T: An instance of the configuration class populated with data from the YAML file.
+
+    Raises:
+        AssertionError: If the configuration file is not a .yaml file or if the thresholds mismatch.
+    """
+    # Ensure the file has a .yaml extension
+    assert configuration_file.lower().endswith('.yaml'), "The configuration file should be a .yaml file"
+
+    # Read and parse the YAML file
     with open(configuration_file, 'r', encoding='utf-8') as file:
-        config_list = yaml.load(file, Loader=yaml.FullLoader)
+        config_data = yaml.load(file, Loader=yaml.FullLoader)
 
-    configuration = configuration_class(**config_list)
+    # Instantiate the configuration class
+    configuration = configuration_class(**config_data)
 
-    # check that the entries match
-    assert len(configuration.threshold_start) == len(configuration.threshold_end), 'The number of starting points and end points does not match.'
+    # Ensure threshold lists have matching lengths
+    assert len(configuration.threshold_start) == len(configuration.threshold_end), (
+        "The number of starting points and end points does not match."
+    )
 
     return configuration

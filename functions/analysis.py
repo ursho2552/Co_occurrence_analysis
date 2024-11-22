@@ -5,99 +5,136 @@ Created on Mon Apr 27 16:10:29 2020
 
 @author: ursho
 """
+from typing import List, Optional
 import numpy as np
+import numpy.typing as npt
+
 from functions.initialize import ConfigurationParameters
 
 
-def find_baseline(file_names: list[str], models: list[str],
-                algorithm_names: list[str], predictors: list[str],
-                clusters: np.ndarray, configurations: ConfigurationParameters) -> np.ndarray:
-    '''
-    This function finds the baseline for each future projection based on the threshold,
-    model, algorithm, and parameterset used.
-    It also considers different clusters if they are provided
-    '''
+def find_baseline(
+    file_names: List[str],
+    models: List[str],
+    algorithm_names: List[str],
+    predictors: List[str],
+    clusters: Optional[npt.NDArray[int]],
+    configurations: ConfigurationParameters,
+) -> npt.NDArray[int]:
+    """
+    Finds the baseline for each future projection based on the threshold,
+    model, algorithm, and parameter set used. Also considers different clusters if provided.
 
-    if clusters is None:
-        clusters = [-1]
+    Args:
+        file_names (List[str]): List of available file names.
+        models (List[str]): List of models to consider.
+        algorithm_names (List[str]): List of algorithm names.
+        predictors (List[str]): List of predictors.
+        clusters (Optional[npt.NDArray[int]]): Array of cluster identifiers.
+        configurations (ConfigurationParameters): Configuration parameters with threshold ranges.
 
-    list_files = np.zeros((len(file_names),3))
-    list_files[:,0] = np.arange(len(file_names))
+    Returns:
+        npt.NDArray[int]: Array indicating matched indices for future and baseline files.
+    """
+    clusters = clusters if clusters is not None else np.array([-1], dtype=int)
+    file_matrix = np.zeros((len(file_names), 3), dtype=int)  # Initialize as integer array
+    file_matrix[:, 0] = np.arange(len(file_names))
 
     for model in models:
+        for algo_idx, algorithm in enumerate(algorithm_names):
+            # Extract threshold range for the current algorithm
+            start_threshold = configurations.threshold_start[algo_idx]
+            end_threshold = configurations.threshold_end[algo_idx]
+            threshold_range = np.arange(start_threshold, end_threshold, 1)
 
-        for idx, algorithm in enumerate(algorithm_names):
-
-            start_threshold = configurations.threshold_start[idx]
-            end_threshold = configurations.threshold_end[idx]
-            threshold_algo = np.arange(start_threshold, end_threshold, 1)
-
-            for threshold in threshold_algo:
-
+            for threshold in threshold_range:
                 for predictor in predictors:
+                    # Construct suffixes for file names
+                    future_suffix = f"Threshold_{threshold}_Scores_future_{model}_{algorithm}_{predictor}.csv"
+                    baseline_suffix = f"Threshold_{threshold}_Scores_baseline_{model}_{algorithm}_{predictor}.csv"
 
-                    future_name_suffix = f'Threshold_{str(threshold)}_Scores_future_{model}_{algorithm}_{predictor}.csv'
-                    baseline_name_suffix = f'Threshold_{str(threshold)}_Scores_baseline_{model}_{algorithm}_{predictor}.csv'
 
                     for cluster in clusters:
+                        # Adjust file names for cluster information
+                        cluster_prefix = f"Cluster_{int(cluster)}_" if cluster > 0 else ""
+                        future_name = f"{cluster_prefix}{future_suffix}"
+                        baseline_name = f"{cluster_prefix}{baseline_suffix}"
 
-                        if cluster > 0:
-                            future_name = f'Cluster_{str(int(cluster))}_{future_name_suffix}'
-                            baseline_name = f'Cluster_{str(int(cluster))}__{baseline_name_suffix}'
-                        else:
-                            future_name = future_name_suffix
-                            baseline_name = baseline_name_suffix
+                        # Identify indices of relevant files
+                        future_indices = [
+                            idx for idx, name in enumerate(file_names) if future_name in name
+                        ]
+                        baseline_indices = [
+                            idx for idx, name in enumerate(file_names) if baseline_name in name
+                        ]
 
-                        ind_future = [ii for ii in range(len(file_names)) if future_name in file_names[ii]]
-                        ind_baseline = [ii for ii in range(len(file_names)) if baseline_name in file_names[ii]]
+                        # Update the file matrix with matches
+                        for future_idx in future_indices:
+                            file_matrix[future_idx, 1] = 1
+                            file_matrix[future_idx, 2] = baseline_indices[0] if baseline_indices else -1
 
-                        list_files[ind_future,1] = 1
-                        list_files[ind_future,2] = ind_baseline
+    return file_matrix
 
-    return list_files
+def get_difference(
+    matrix_baseline: npt.NDArray[np.float64],
+    matrix_projection: npt.NDArray[np.float64],
+    threshold: int = 75,
+) -> List[int]:
+    """
+    Evaluates changes in species pairs based on likelihood ratios.
+
+    Args:
+        matrix_baseline (np.ndarray): Baseline matrix of likelihood ratios.
+        matrix_projection (np.ndarray): Future projection matrix of likelihood ratios.
+        threshold (int): Percentile threshold for significance (default: 75).
+
+    Returns:
+        List[int]: Counts of lost, gained, constant, and never-present pairs.
+    """
+    # Calculate significance threshold
+    if np.all(matrix_baseline == 0):
+        significance_threshold = 0
+    else:
+        non_zero_values = matrix_baseline[matrix_baseline > 0]
+        significance_threshold = np.percentile(non_zero_values, threshold)
+
+    # Binary matrices for significant pairs
+    baseline_binary = (matrix_baseline > significance_threshold).astype(int)
+    future_binary = (matrix_projection > significance_threshold).astype(int)
+
+    # Count changes
+    loss = np.sum((baseline_binary == 1) & (future_binary == 0))
+    gain = np.sum((baseline_binary == 0) & (future_binary == 1))
+    const = np.sum((baseline_binary == 1) & (future_binary == 1))
+    never = np.sum((baseline_binary == 0) & (future_binary == 0))
+
+    return [loss, gain, const, never]
 
 
+def flag_significant_pairs(
+    matrix_baseline: npt.NDArray[np.float64],
+    matrix_projection: npt.NDArray[np.float64],
+    threshold: int = 75,
+) -> npt.NDArray[int]:
+    """
+    Flags significant species pairs gained in the projection compared to the baseline.
 
-def get_difference(matrix_baseline: np.ndarray, matrix_projection: np.ndarray,
-                    threshold: int=75) -> list[int]:
-    '''
-    This function uses the likelihood ratio of species pairs in a baseline and a future projection
-    to evaluate which pairs were lost, gained, remained constant, or where never there
-    '''
+    Args:
+        matrix_baseline (np.ndarray): Baseline matrix of likelihood ratios.
+        matrix_projection (np.ndarray): Future projection matrix of likelihood ratios.
+        threshold (int): Percentile threshold for significance (default: 75).
 
-    non_zero_llr = matrix_baseline[matrix_baseline > 0]
+    Returns:
+        npt.NDArray[int]: Matrix with flags for newly significant pairs.
+    """
+    # Calculate significance threshold
+    if np.all(matrix_baseline == 0):
+        #all changes are gained pairs
+        return (matrix_projection > 0).astype(int)
 
-    threshold_significance = np.percentile(non_zero_llr, threshold)
+    significant_values = matrix_baseline[matrix_baseline > 0]
+    significance_threshold = np.percentile(significant_values, threshold)
 
-    baseline = np.where(matrix_baseline > threshold_significance, 1, 0)
-    future = np.where(matrix_projection > threshold_significance, 1, 0)
-
-
-    loss = len(np.argwhere((baseline == 1) & (future == 0)))
-    gain = len(np.argwhere((baseline == 0) & (future == 1)))
-    const = len(np.argwhere((baseline == 1) & (future == 1)))
-    never = len(np.argwhere((baseline == 0) & (future == 0)))
-
-    return [loss,gain,const,never]
-
-def flag_significant_pairs(matrix_baseline: np.ndarray,
-                            matrix_projection: np.ndarray,
-                            threshold: int=75) -> np.ndarray:
-    '''
-    This function flags species pairs gained in the projection compared to those in the baseline.
-    The default threshold is the 75th percentile of the baseline values
-    '''
-
-    vec = matrix_baseline[matrix_baseline > 0]
-
-    significant_threshold = np.percentile(vec, threshold)
-
-    gained_pairs = np.where((matrix_baseline <= significant_threshold) &
-                            (matrix_projection > significant_threshold), 1, 0)
+    # Flag gained pairs
+    gained_pairs = np.where((matrix_baseline <= significance_threshold) & (matrix_projection > significance_threshold), 1, 0)
 
     return gained_pairs
-
-
-
-
-
